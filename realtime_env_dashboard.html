@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bảng giám sát môi trường - Realtime</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    .card span {
+      font-size: 20px;
+      display: block;
+      margin-bottom: 5px;
+    }
+    #chart {
+      max-width: 100%;
+    }
+    #map {
+      height: 400px;
+      margin-top: 30px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🌿 Bảng thông số môi trường (Realtime)</h2>
+    <div class="grid">
+      <div class="card"><span>🌡️ Nhiệt độ</span><strong id="temp">--</strong> °C</div>
+      <div class="card"><span>💧 Độ ẩm</span><strong id="humidity">--</strong> %</div>
+      <div class="card"><span>☀️ Ánh sáng</span><strong id="light">--</strong> Lux</div>
+      <div class="card"><span>🌫️ PM2.5</span><strong id="pm25">--</strong> µg/m³</div>
+      <div class="card"><span>🏭 PM10</span><strong id="pm10">--</strong> µg/m³</div>
+      <div class="card"><span>🌬️ AQI</span><strong id="aqi">--</strong></div>
+    </div>
+
+    <canvas id="chart" height="100"></canvas>
+    <div id="map"></div>
+  </div>
+
+  <script>
+    // Dữ liệu realtime giả lập cập nhật mỗi 3 giây
+    let chart;
+    const chartData = {
+      labels: [],
+      temps: [],
+      pm25s: []
+    };
+
+    function updateSensorData() {
+      const now = new Date().toLocaleTimeString();
+      const temp = Math.floor(Math.random() * 10) + 25;
+      const humidity = Math.floor(Math.random() * 20) + 60;
+      const light = Math.floor(Math.random() * 300) + 300;
+      const pm25 = Math.floor(Math.random() * 40) + 10;
+      const pm10 = pm25 + Math.floor(Math.random() * 30);
+      const aqi = Math.floor(pm25 * 1.2);
+
+      // Cập nhật HTML
+      document.getElementById("temp").textContent = temp;
+      document.getElementById("humidity").textContent = humidity;
+      document.getElementById("light").textContent = light;
+      document.getElementById("pm25").textContent = pm25;
+      document.getElementById("pm10").textContent = pm10;
+      document.getElementById("aqi").textContent = aqi;
+
+      // Cập nhật biểu đồ
+      if (chartData.labels.length > 10) {
+        chartData.labels.shift();
+        chartData.temps.shift();
+        chartData.pm25s.shift();
+      }
+      chartData.labels.push(now);
+      chartData.temps.push(temp);
+      chartData.pm25s.push(pm25);
+
+      chart.data.labels = chartData.labels;
+      chart.data.datasets[0].data = chartData.temps;
+      chart.data.datasets[1].data = chartData.pm25s;
+      chart.update();
+    }
+
+    // Biểu đồ
+    const ctx = document.getElementById("chart").getContext("2d");
+    chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: "Nhiệt độ (°C)",
+            data: [],
+            borderColor: "orange",
+            backgroundColor: "rgba(255,165,0,0.1)",
+            tension: 0.3
+          },
+          {
+            label: "PM2.5 (µg/m³)",
+            data: [],
+            borderColor: "green",
+            backgroundColor: "rgba(0,128,0,0.1)",
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: "bottom"
+          }
+        }
+      }
+    });
+
+    // Bản đồ
+    const map = L.map("map").setView([21.0362, 105.7829], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+    const marker = L.marker([21.0362, 105.7829]).addTo(map).bindPopup("Cảm biến môi trường").openPopup();
+
+    // Cập nhật liên tục mỗi 3 giây
+    updateSensorData();
+    setInterval(updateSensorData, 3000);
+  </script>
+</body>
+</html>

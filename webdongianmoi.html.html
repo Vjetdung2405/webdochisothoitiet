@@ -1,0 +1,147 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Sensing Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; margin: 0; padding: 0; }
+    h1 { text-align: center; margin: 1rem 0; color: #1e293b; }
+    .container { max-width: 1200px; margin: auto; padding: 1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .card { background: white; padding: 1rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); color: #0f172a; }
+    .map { height: 300px; margin: 2rem 0; border-radius: 12px; }
+    canvas { background: white; border-radius: 12px; margin-bottom: 2rem; }
+    .controls { display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    select, input[type="time"] { padding: 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; }
+  </style>
+</head>
+<body>
+  <h1>Smart Sensing Dashboard</h1>
+  <div class="container">
+    <p style="text-align:center" id="timestamp"></p>
+
+    <div class="controls">
+      <label>Chọn giờ:
+        <input type="time" id="hourInput">
+      </label>
+    </div>
+
+    <div class="grid" id="data-grid">
+      <div class="card" id="aqi">AQI: --</div>
+      <div class="card" id="pm25">PM2.5: --</div>
+      <div class="card" id="pm10">PM10: --</div>
+      <div class="card" id="co">CO: --</div>
+      <div class="card" id="temp">Nhiệt độ: --</div>
+      <div class="card" id="humidity">Độ ẩm: --</div>
+      <div class="card" id="wind">Gió: --</div>
+      <div class="card" id="rain">Mưa: --</div>
+    </div>
+
+    <div class="map" id="map"></div>
+
+    <canvas id="chart_pm25" height="150"></canvas>
+    <canvas id="chart_pm10" height="150"></canvas>
+    <canvas id="chart_temp" height="150"></canvas>
+    <canvas id="chart_co" height="150"></canvas>
+  </div>
+
+  <script>
+    const lat = 21.03, lon = 105.85;
+    let airData, weatherData;
+
+    async function fetchData() {
+      const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm10,pm2_5,carbon_monoxide`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation`;
+      const [air, weather] = await Promise.all([fetch(airUrl), fetch(weatherUrl)]);
+      airData = await air.json();
+      weatherData = await weather.json();
+      updateUI();
+    }
+
+    function updateUI() {
+      const timeArr = airData.hourly.time;
+      const hourSelected = document.getElementById("hourInput").value;
+      let index = 0;
+
+      if (hourSelected) {
+        const match = timeArr.findIndex(t => t.includes(hourSelected));
+        if (match !== -1) index = match;
+      }
+
+      const now = new Date();
+      document.getElementById("timestamp").innerText = "Cập nhật lúc: " + now.toLocaleString();
+
+      document.getElementById("pm25").innerText = `PM2.5: ${airData.hourly.pm2_5[index]} µg/m³`;
+      document.getElementById("pm10").innerText = `PM10: ${airData.hourly.pm10[index]} µg/m³`;
+      document.getElementById("co").innerText = `CO: ${airData.hourly.carbon_monoxide[index]} µg/m³`;
+      document.getElementById("temp").innerText = `Nhiệt độ: ${weatherData.hourly.temperature_2m[index]}°C`;
+      document.getElementById("humidity").innerText = `Độ ẩm: ${weatherData.hourly.relative_humidity_2m[index]}%`;
+      document.getElementById("wind").innerText = `Gió: ${weatherData.hourly.wind_speed_10m[index]} km/h`;
+      document.getElementById("rain").innerText = `Mưa: ${weatherData.hourly.precipitation[index]} mm`;
+
+      const aqi = airData.hourly.pm2_5[index];
+      let level = "Tốt", color = "#10b981";
+      if (aqi > 100) { level = "Không tốt"; color = "#ef4444"; }
+      else if (aqi > 75) { level = "Xấu"; color = "#f97316"; }
+      else if (aqi > 50) { level = "Vừa"; color = "#eab308"; }
+      document.getElementById("aqi").innerText = `AQI (PM2.5): ${aqi} – ${level}`;
+      document.getElementById("aqi").style.color = color;
+
+      drawCharts();
+    }
+
+    function drawCharts() {
+      const labels = airData.hourly.time.map(t => t.split("T")[1]);
+
+      new Chart(document.getElementById("chart_pm25"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{ label: "PM2.5", data: airData.hourly.pm2_5, borderColor: "#6366f1", fill: true }]
+        }
+      });
+
+      new Chart(document.getElementById("chart_pm10"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{ label: "PM10", data: airData.hourly.pm10, borderColor: "#7c3aed", fill: true }]
+        }
+      });
+
+      new Chart(document.getElementById("chart_temp"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{ label: "Nhiệt độ", data: weatherData.hourly.temperature_2m, borderColor: "#f87171", fill: true }]
+        }
+      });
+
+      new Chart(document.getElementById("chart_co"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{ label: "CO", data: airData.hourly.carbon_monoxide, borderColor: "#facc15", fill: true }]
+        }
+      });
+    }
+
+    document.getElementById("hourInput").addEventListener("change", updateUI);
+
+    const map = L.map("map").setView([lat, lon], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "© OpenStreetMap",
+    }).addTo(map);
+    L.marker([lat, lon]).addTo(map).bindPopup("Vị trí cảm biến").openPopup();
+
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>
